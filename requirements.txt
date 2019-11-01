@@ -1,0 +1,6 @@
+networkx
+numpy
+requests
+google-auth
+google-auth-oauthlib
+git+https://github.com/moenigin/brainmaps_api_fcn.git@master
