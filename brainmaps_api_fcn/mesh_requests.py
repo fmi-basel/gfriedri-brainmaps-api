@@ -31,11 +31,10 @@ class Meshes(BrainMapsRequest):
         for x in resp.json()['meshes']:
             if x['type'] == mesh_type:
                 return x['name']
-            else:
-                print(x['type'])
-                msg = 'Meshes of type'+mesh_type +' not found for volume' + \
-                      self.volume_id
-                raise ValueError(msg)
+        else:
+            msg = 'Meshes of type ' + mesh_type + ' not found for volume ' + \
+                  self.volume_id
+            raise ValueError(msg)
 
     def _get_fragment_list(self, sv_id, mesh_name):
         """gets list of mesh fragments associated with segment sv_id
