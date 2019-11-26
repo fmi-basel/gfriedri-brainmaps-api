@@ -52,22 +52,22 @@ Optional: for faster decompression, e.g. fordownloading subvolumes install pytho
 ## Usage Example
 Get segment id at a certain voxel position:
 ```
-from brainmaps_api_fcn.subvolume_request import SubvolumeRequest
+from brainmaps_api_fcn.subvolume_requests import SubvolumeRequest
 svr = SubvolumeRequest(<path_to_client_secret>, volume_id)
 arr = svr.get_subvolume([3014, 13292, 89], [1,1,1])
 ```
 
 Download skeleton of a segment
 ```
-from brainmaps_api_fcn.mesh_request import MeshRequest
-mr = MeshRequest(<path_to_client_secret>, volume_id)
+from brainmaps_api_fcn.mesh_requests import Meshes
+mr = Meshes(<path_to_client_secret>, volume_id)
 segment_id = 55360714
 skel_graph = mr.download_skeleton(segment_id)
 ```
 
 Retrieve connected segments from an agglomeration graph
 ```
-from brainmaps_api_fcn.equivalences_request import EquivalenceRequests
+from brainmaps_api_fcn.equivalence_requests import EquivalenceRequests
 er = EquivalenceRequests(<path_to_client_secret>, volume_id, change_stack_id)
 segment_id = 55360714
 edges = er.get_equivalence_list(segment_id)

@@ -182,8 +182,8 @@ class Meshes(BrainMapsRequest):
             source_node = skel_json['skeleton']['indices'][idx]
             target_node = skel_json['skeleton']['indices'][idx + 1]
             dist = np.linalg.norm([
-                x1 - x2 for x1, x2 in zip(skel_graph.node[target_node]['pos'],
-                                          skel_graph.node[source_node]['pos'])
+                x1 - x2 for x1, x2 in zip(skel_graph.nodes[target_node]['pos'],
+                                          skel_graph.nodes[source_node]['pos'])
             ])
             skel_graph.add_edge(source_node, target_node, weight=dist)
         return skel_graph
