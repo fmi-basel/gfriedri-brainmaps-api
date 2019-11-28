@@ -36,34 +36,35 @@ class EquivalenceRequests(BrainMapsRequest):
     @property
     def equ_base_url(self):
         return self.base_url + '/changes/{}/{}/equivalences:'.format(
-                                self.volume_id, self.change_stack_id)
+            self.volume_id, self.change_stack_id)
 
-    def set_equivalence(self, edge, locations=None):
+    def set_equivalence(self, edge):
         """sets an equivalence between two unagglomerated supervoxels
 
         Args:
-            edge (list) : list with segment id pair
-            locations (list) : list with pair of [x,y,z] location
+            edge (list) : list with segment id pair or list with pair of
+                        [x,y,z] location
 
         Returns:
             int : the (novel) common group_id after merging segments
         """
-        if locations is None:
-            body = {"edge": {"first": str(edge[0]), "second": str(edge[1])}}
-        else:
+        # Check whether input is a list of locations or segment ids
+        if all([type(item) == list and len(item) == 3 for item in edge]):
             body = {
                 "edge": {
                     "firstLocation":
-                        ', '.join(str(int(x)) for x in locations[0]),
+                        ', '.join(str(int(x)) for x in edge[0]),
                     "secondLocation":
-                        ', '.join(str(int(x)) for x in locations[1]),
+                        ', '.join(str(int(x)) for x in edge[1]),
                 }
             }
+        else:
+            body = {"edge": {"first": str(edge[0]), "second": str(edge[1])}}
         url = self.equ_base_url + 'set'
         resp = self.post_request(url, body)
         if not resp.json():
             raise EmptyResponse(
-                'The API response is empty. Check supervoxels in edes_to_set')
+                'The API response is empty. Check input arguments')
 
         return int(resp.json()['groupId'])
 
@@ -87,7 +88,7 @@ class EquivalenceRequests(BrainMapsRequest):
         url = self.equ_base_url + 'list'
         resp = self.post_request(url, body)
         if not resp.json():
-            raise EmptyResponse('The API response is empty. Check input')
+            raise EmptyResponse('The API response is empty. Check input arguments')
         edges = []
         for edge_json in resp.json()['edge']:
             edges.append([int(edge_json['first']), int(edge_json['second'])])
@@ -149,7 +150,7 @@ class EquivalenceRequests(BrainMapsRequest):
         resp = self.post_request(url, body)
         if not resp.json():
             raise EmptyResponse(
-                'The API response is empty. Check input variables')
+                'The API response is empty. Check input arguments')
         members = dict()
         for i, entry in enumerate(resp.json()['groups']):
             members[int_to_list(sv_id)[i]] = [
@@ -174,7 +175,7 @@ class EquivalenceRequests(BrainMapsRequest):
         resp = self.post_request(url, body)
         if not resp.json():
             raise EmptyResponse(
-                'The API response is empty. Check input variables')
+                'The API response is empty. Check input arguments')
         mapping = resp.json()['mapping']
         group_ids = [min(int(x['first']), int(x['second'])) for x in mapping]
         return group_ids
