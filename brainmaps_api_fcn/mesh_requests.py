@@ -74,7 +74,6 @@ class Meshes(BrainMapsRequest):
             indices (list) : list of mesh triangle indices
             vertices (list) : node position in voxel coordinates
         """
-        print(' in _mesh_from_stream: bytestream length', len(bytestream))
         ull_size = 8
         float_size = 4
         id_length = struct.unpack("<Q", bytestream[ull_size:ull_size * 2])[0]

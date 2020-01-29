@@ -4,7 +4,7 @@ from brainmaps_api_fcn.basic_requests import BrainMapsRequest, EmptyResponse
 def int_to_list(sv_id):
     """helper function to turn int input to list for request body creation
     in many BrainMapsAPI calls"""
-    if type(sv_id) == int:
+    if not isinstance(sv_id, list):
         return [sv_id]
     else:
         return sv_id
@@ -49,7 +49,7 @@ class EquivalenceRequests(BrainMapsRequest):
             int : the (novel) common group_id after merging segments
         """
         # Check whether input is a list of locations or segment ids
-        if all([type(item) == list and len(item) == 3 for item in edge]):
+        if all([isinstance(item, list) and len(item) == 3 for item in edge]):
             body = {
                 "edge": {
                     "firstLocation":
