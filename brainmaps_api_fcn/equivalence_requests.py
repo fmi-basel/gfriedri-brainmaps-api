@@ -1,13 +1,42 @@
 from brainmaps_api_fcn.basic_requests import BrainMapsRequest, EmptyResponse
+from collections.abc import Iterable
 
 
 def int_to_list(sv_id):
     """helper function to turn int input to list for request body creation
-    in many BrainMapsAPI calls"""
+    in many BrainMapsAPI calls
+
+    Args:
+        sv_id (int or list): single segment id or list of segment ids
+
+    Returns:
+        list: list of segment ids
+    """
     if not isinstance(sv_id, list):
         return [sv_id]
     else:
         return sv_id
+
+
+def check_convertible_to_int(item):
+    """helper function that checks whether item or first level entries in item
+    can be converted to integer.
+
+    Args:
+        item (various): item to be checked whether it can be converted to
+                        an integer
+
+    Returns:
+        bool: True if item can be converted to int, False otherwise
+    """
+    try:
+        if isinstance(item, Iterable):
+            [int(x) for x in item]
+        else:
+            int(item)
+        return True
+    except ValueError:
+        return False
 
 
 class EquivalenceRequests(BrainMapsRequest):
@@ -48,18 +77,28 @@ class EquivalenceRequests(BrainMapsRequest):
         Returns:
             int : the (novel) common group_id after merging segments
         """
-        # Check whether input is a list of locations or segment ids
-        if all([isinstance(item, list) and len(item) == 3 for item in edge]):
-            body = {
-                "edge": {
-                    "firstLocation":
-                        ', '.join(str(int(x)) for x in edge[0]),
-                    "secondLocation":
-                        ', '.join(str(int(x)) for x in edge[1]),
-                }
-            }
+        if len(edge) != 2:
+            raise ValueError('edge argument has to contain either two segment '
+                             'ids or two xyz coordinates which are supposed to '
+                             'be linked')
+
+        if all([len(item) == 3 for item in edge]):
+            if all([check_convertible_to_int(coord) for coord in edge]):
+                edge_keys = ["firstLocation", "secondLocation"]
+                edge = [', '.join(str(int(x)) for x in coord) for coord in
+                        edge]
+            else:
+                raise ValueError('xyz coordinate of the edge argument need to '
+                                 'be convertible to integers')
         else:
-            body = {"edge": {"first": str(edge[0]), "second": str(edge[1])}}
+            edge_keys = ["first", "second"]
+
+        body = {
+                "edge": {
+                    key: str(val) for key, val in zip(edge_keys, edge)
+                    }
+                }
+
         url = self.equ_base_url + 'set'
         resp = self.post_request(url, body)
         if not resp.json():
@@ -79,7 +118,7 @@ class EquivalenceRequests(BrainMapsRequest):
             sv_id (int or list) : segment ids
 
         Returns:
-            edges (list) : list with all edges of segments in sv_id
+            list : list with all edges of segments in sv_id
         """
         body = {
             "segmentId": [str(x) for x in int_to_list(sv_id)],
@@ -88,7 +127,8 @@ class EquivalenceRequests(BrainMapsRequest):
         url = self.equ_base_url + 'list'
         resp = self.post_request(url, body)
         if not resp.json():
-            raise EmptyResponse('The API response is empty. Check input arguments')
+            raise EmptyResponse(
+                'The API response is empty. Check input arguments')
         edges = []
         for edge_json in resp.json()['edge']:
             edges.append([int(edge_json['first']), int(edge_json['second'])])
@@ -105,7 +145,7 @@ class EquivalenceRequests(BrainMapsRequest):
             edge (list) : pair of segment ids
 
         Returns:
-            resp : post request response
+            requests.models.Response : post request response
         """
         body = {"edge": {"first": str(edge[0]), "second": str(edge[1])}}
         url = self.equ_base_url + 'delete'
@@ -124,7 +164,7 @@ class EquivalenceRequests(BrainMapsRequest):
                             [segment_id1, segment_id3], ...]
 
         Returns:
-            resp : post request response
+            requests.models.Response : post request response
         """
         body = {"edge":
                     [{"first": str(edge[0]),
@@ -142,7 +182,7 @@ class EquivalenceRequests(BrainMapsRequest):
             sv_id (int or list) : supervoxel ids
 
         Returns:
-              members (list) : members of the agglomerated segments for the
+              list : members of the agglomerated segments for the
               supervoxels in sv_id
         """
         body = {"segmentId": [str(x) for x in int_to_list(sv_id)]}
@@ -166,7 +206,7 @@ class EquivalenceRequests(BrainMapsRequest):
             sv_id (int or list) : supervoxel id(s)
 
         Returns:
-            group_ids (list) : list of agglomerated segment ids
+            list : list of agglomerated segment ids
         """
         body = {
             "segmentId": [str(x) for x in int_to_list(sv_id)],
@@ -192,7 +232,7 @@ class EquivalenceRequests(BrainMapsRequest):
             exclude (boolean) : flag that determines whether edges in between
                             members of sv_id are excluded from deletion
         Returns:
-            resp : post request response
+            requests.models.Response : post request response
          """
         body = {
             "segmentIds": [str(x) for x in int_to_list(sv_id)],
