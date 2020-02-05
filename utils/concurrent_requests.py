@@ -28,18 +28,17 @@ class RunConcurrentRequest:
     """Class to run BrainMapsAPI requests concurrently using a
     ThreadPoolExecutor
 
+    Should be used as a context manager. Returns responses as a dictionary (see
+    run_request) and optionally stores a logfile in form of a pickle.
+
     Args:
         request_fcn: function to run the request with
         args(list): list of arguments that are passed to the request function
-        logfile(str, optional): full file name to store the responses in a log
-                                file (pickle)
-
-    Returns:
-        dict: dictionary with 2 keys:
-                'data' (dict):  key: argument from args,
-                                value: response of successful requests
-                'errors'(dict): keys: argument from args,
-                                value: error code of failed requests
+        log_file(str, optional): full file name to store the responses in a log
+                            file (pickle)
+        unpack(boolean, optional): flag which decides whether the arguments
+                                   in args should be unpacked before being
+                                   passed to the request function
 
     """
     def __init__(self, request_fcn, args, log_file=None, unpack=False):
@@ -54,10 +53,20 @@ class RunConcurrentRequest:
         return self
 
     def __exit__(self, *args):
-        with open(self.log_file, 'wb') as file:
-            pickle.dump(self.response_data, file)
+        if self.logfile:
+            with open(self.log_file, 'wb') as file:
+                pickle.dump(self.response_data, file)
 
     def run_request(self):
+        """function to run requests concurrently
+
+        Returns:
+             dict: dictionary with 2 keys:
+                'data' (dict):  key: argument from args,
+                                value: response of successful requests
+                'errors'(dict): keys: argument from args,
+                                value: error code of failed requests
+        """
         with ThreadPoolExecutor() as executor:
             if self.unpack:
                 future_iterable = {
