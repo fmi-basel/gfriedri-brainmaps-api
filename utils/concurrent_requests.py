@@ -31,17 +31,31 @@ class RunConcurrentRequest:
     Should be used as a context manager. Returns responses as a dictionary (see
     run_request) and optionally stores a logfile in form of a pickle.
 
-    Args:
-        request_fcn: function to run the request with
-        args(list): list of arguments that are passed to the request function
-        log_file(str, optional): full file name to store the responses in a log
-                            file (pickle)
-        unpack(boolean, optional): flag which decides whether the arguments
-                                   in args should be unpacked before being
-                                   passed to the request function
+    Attributes:
+        args (list): list of arguments that are passed to the request function
+        response_data (dict): stores response for all items passed to the
+                              request_fcn in nested dict for successful and
+                              failed requests
+        log_file (None, str): file name for the log file
+        request_fcn: function to run the request
+        unpack (boolean): flag which determines whether the arguments in args
+                          should be unpacked before passing to the request
+                          function
 
     """
     def __init__(self, request_fcn, args, log_file=None, unpack=False):
+        """initiates RunConcurrentRequests
+
+        Args:
+            request_fcn: function to run the request with
+            args (list): list of arguments that are passed to the request
+                         function
+            log_file (str, optional): full file name to store the responses in
+                                      a log file (pickle)
+            unpack (boolean, optional): flag which decides whether the arguments
+                                        in args should be unpacked before being
+                                        passed to the request function
+        """
         self.args = args
         self.response_data = {'data': dict(),
                               'errors': dict()}
