@@ -67,7 +67,7 @@ class RunConcurrentRequest:
         return self
 
     def __exit__(self, *args):
-        if self.logfile:
+        if self.log_file:
             with open(self.log_file, 'wb') as file:
                 pickle.dump(self.response_data, file)
 
