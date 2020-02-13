@@ -5,7 +5,6 @@ from multiprocessing import cpu_count
 from timeit import default_timer as timer
 from datetime import timedelta
 
-
 sentinel = object()
 
 
@@ -41,9 +40,8 @@ class RateLimitedRequestsThreadPool:
                     duration
     """
 
-    def __init__(self, func_args, func, data_queue, Nrequests=10 ** 4,
-                 period=100, use_bulk_requests=True, max_batch_size=50,
-                 max_workers=None):
+    def __init__(self, func, func_args, Nrequests=10 ** 4, period=100,
+                 use_bulk_requests=True, max_batch_size=50, max_workers=None):
         """
         Args:
             func: request function
@@ -71,20 +69,20 @@ class RateLimitedRequestsThreadPool:
         self._queuing_event = Event()
         self._queuing_interval = 1 / rate
 
+        self.start_queuing()
+
         # Threadpool part
         # variables for concurrent request
         self.func = func
         if max_workers is None:
-            max_workers = cpu_count()
+            self.max_workers = min(32, cpu_count() + 4)
         else:
             self.max_workers = max_workers
-        self.data_queue = data_queue
         self.result_queue = Queue()
         self.abort = Event()
 
-        self.start_queuing()
-
     def start_queuing(self):
+        """"""
         Thread(target=self.extend_queue, daemon=True).start()
 
     def _extend_queue(self):
@@ -121,6 +119,7 @@ class RateLimitedRequestsThreadPool:
         """
         self.batch_size = 1
         if len(self.request_durations) == self.min_requests:
+            # todo: switch to median duration
             mean_duration = sum(self.request_durations) / len(
                 self.request_durations)
             if mean_duration < max_dur:
