@@ -9,8 +9,6 @@ from timeit import default_timer as timer
 from brainmaps_api_fcn.basic_requests import EmptyResponse
 from baf_utils.utils import to_key
 
-_sentinel = object()
-
 
 class ThreadWithReturn(Thread):
     """"""
@@ -51,7 +49,7 @@ class ThreadWithReturn(Thread):
             self.request_durations.append(stop - start)
             result[key] = {to_key(arg): response}
             self.result_queue.put(result)
-        print('thread.run is not in while loop')
+        print('thread run is not in while loop')
 
 
 class RateLimitedRequestsThreadPool:
@@ -103,7 +101,8 @@ class RateLimitedRequestsThreadPool:
             self.max_workers = max_workers
         self.workers = []
         self.result_queue = Queue()
-        self.abort = Event()
+        # self.abort = Event()
+        self.aborts = []
         self.run_requests()
 
         self.results = {'data': {}, 'errors': {}}
@@ -124,9 +123,7 @@ class RateLimitedRequestsThreadPool:
                 self.determine_batch_size()
 
             if len(self.func_args) == 0:
-                # function argument iterable is empty: place sentinel in queue
-                # to stop threadpool and terminate producer thread
-                next_item = _sentinel
+                # set abort event and break?
                 self._queuing_event.set()
                 print('queuing event was set')
             elif len(self.func_args) < self.batch_size:
@@ -136,7 +133,7 @@ class RateLimitedRequestsThreadPool:
             self.func_args = self.func_args[self.batch_size:]
             self.data_queue.put(next_item)
         # set abort event upon exit of the loop
-        self.abort.set()
+        self.abort()
         print('abort event was set')
 
     def determine_batch_size(self, max_dur=1):
@@ -162,24 +159,37 @@ class RateLimitedRequestsThreadPool:
     def run_requests(self):
         """creates a thread pool of workers that start themselves"""
         for n in range(self.max_workers):
+            abort = Event()
+            self.aborts.append(abort)
             self.workers.append(
                 ThreadWithReturn(func=self.func, arg_queue=self.data_queue,
                                  result_queue=self.result_queue,
                                  request_durations=self.request_durations,
-                                 abort=self.abort)
+                                 abort=abort)
             )
 
+    def abort(self):
+        """"""
+        for ev in self.aborts:
+            ev.set()
+
+    # todo figure out how to actually get this from a calling function
     def cleanup_result_queue(self):
         """"""
-        # todo: check why while condition is always True
+        # todo: with single abort event only one thread gets terminated by the
+        #  setting of the event -> why is event setting not registered with the
+        #  other threads....
         # get results while workers are active
         while any([worker.is_alive() for worker in self.workers]):
+            if self.abort.is_set():
+                print([worker.is_alive() for worker in self.workers])
             # print('results are being cleaned up')
             if not self.result_queue.empty():
                 self.get_results()
             else:
                 continue
-        # could there be still items in the result queue when the while condition becomes false???
+        # todo: is this necessary? Could there be still items in the result
+        #  queue when the while condition becomes false???
         while not self.result_queue.empty():
             self.get_results()
 
