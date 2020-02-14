@@ -5,18 +5,22 @@ from requests.exceptions import HTTPError
 from statistics import median
 from threading import Thread, Event
 from timeit import default_timer as timer
+from time import sleep
 
 from brainmaps_api_fcn.basic_requests import EmptyResponse
 from baf_utils.utils import to_key
 
 
 class ThreadWithReturn(Thread):
-    """"""
-    def __init__(self, func, arg_queue, result_queue, request_durations, abort):
+    """Thread that writes return valus to dictionary, stops time it takes for
+    the request and stores it in deque
+    """
+
+    def __init__(self, func, arg_queue, results_dict, request_durations, abort):
         super(ThreadWithReturn, self).__init__()
         self.func = func
         self.arg_queue = arg_queue
-        self.result_queue = result_queue
+        self.results = results_dict
         self.request_durations = request_durations
         self.abort = abort
         self.daemon = True
@@ -27,10 +31,9 @@ class ThreadWithReturn(Thread):
         the result_queue
         """
         while not self.abort.is_set():
-            start = timer()
             arg = self.arg_queue.get()
-            result = dict()
             key = 'errors'
+            start = timer()
             try:
                 response = self.func(arg)
                 stop = timer()
@@ -47,18 +50,43 @@ class ThreadWithReturn(Thread):
                 stop = timer()
 
             self.request_durations.append(stop - start)
-            result[key] = {to_key(arg): response}
-            self.result_queue.put(result)
-        print('thread run is not in while loop')
+            self.results[key].update({to_key(arg): response})
 
 
 class RateLimitedRequestsThreadPool:
     """
+    Thread pool for BrainMapsAPI requests that limits the rate of requests by
+    limited access to tasks in a queue.
+    If the request function allows batch requests the speed of the last 15
+    requests finishing will determine whether to do batch or single requests.
+    This serves to compensate for slower request handling when the equivalence
+    graph is not cached (onset or moving to different server)
+
+    Alternate approach (Markus): request arguments are added to a queue as
+    single items, workers draw single or batches depending on is_slow flag.
+    Rate limiting achieved by allowing only a certain number of threads to run
+    at a time?
+
     Attributes:
-        request_durations (collections.deque): duration of the last x requests
-                                finished
+        data_queue (queue.Queue) : queue for the request arguments
         min_requests (int): minimal number of request over which to average the
-                    duration
+                            duration (set to 15)
+        request_durations (collections.deque): duration of the last min_requests
+                                            requests finished
+
+        batch_size (int): size of therequest arguments
+        _queuing_event (threading.Event): event to continue entry of data into
+                                          the data queue. When no more data is
+                                          available it is set.
+        _queuing_interval (float): interval at which data is put to the
+                                    data_queue = period/Nrequests
+        func: request function
+        func_args: list of input arguments to the request function
+        max_workers: maximal number of threads
+        use_bulk_requests: Flag that determines whether to use bulk requests
+                            or not
+        max_batch_size: maximal number of items in a bulk request
+
     """
 
     def __init__(self, func, func_args, Nrequests=10 ** 4, period=100,
@@ -93,28 +121,22 @@ class RateLimitedRequestsThreadPool:
         self.start_queuing()
 
         # Threadpool part
-        # variables for concurrent request
+        self.results = {'data': {}, 'errors': {}}
         self.func = func
         if max_workers is None:
             self.max_workers = min(32, cpu_count() + 4)
         else:
             self.max_workers = max_workers
         self.workers = []
-        self.result_queue = Queue()
-        # self.abort = Event()
         self.aborts = []
         self.run_requests()
 
-        self.results = {'data': {}, 'errors': {}}
-        self.cleanup_response_thread = Thread(
-            target=self.cleanup_result_queue(),
-            daemon=True)
-        self.cleanup_response_thread.start()
+        while any([worker.is_alive() for worker in self.workers]):
+            pass
 
     def start_queuing(self):
-        """"""
-        self.queuing_thread = Thread(target=self._extend_queue, daemon=True)
-        self.queuing_thread.start()
+        """starts the thread that provides """
+        Thread(target=self._extend_queue, daemon=True).start()
 
     def _extend_queue(self):
         """Places the next batch of input arguments in the data queue"""
@@ -123,32 +145,23 @@ class RateLimitedRequestsThreadPool:
                 self.determine_batch_size()
 
             if len(self.func_args) == 0:
-                # set abort event and break?
                 self._queuing_event.set()
-                print('queuing event was set')
             elif len(self.func_args) < self.batch_size:
                 next_item = self.func_args[:]
             else:
                 next_item = self.func_args[:self.batch_size]
             self.func_args = self.func_args[self.batch_size:]
             self.data_queue.put(next_item)
-        # set abort event upon exit of the loop
-        self.abort()
-        print('abort event was set')
+        self.check_all_done()
 
     def determine_batch_size(self, max_dur=1):
         """function that switches size of a bulk request according to request
         duration
 
         Args:
-
-
-            max_bulk_size (int): maximum size of a bulk_request
-            max_dur(int, float): maximum allowed duration in seconds for the mean
-                                request to take before the bulk size is reduced to 1
-
-        Returns:
-            int: current bulk size for a request
+            max_dur(int, float): maximum duration in seconds allowed for the
+                                median request to take before the bulk size is
+                                reduced to 1
         """
         self.batch_size = 1
         if len(self.request_durations) == self.min_requests:
@@ -163,39 +176,21 @@ class RateLimitedRequestsThreadPool:
             self.aborts.append(abort)
             self.workers.append(
                 ThreadWithReturn(func=self.func, arg_queue=self.data_queue,
-                                 result_queue=self.result_queue,
+                                 # result_queue=self.result_queue,
+                                 results_dict=self.results,
                                  request_durations=self.request_durations,
                                  abort=abort)
             )
 
+    def check_all_done(self):
+        """waits for all tasks in the data queue to be processed and then issues
+        an abort signal to all workers"""
+        while not self.data_queue.empty():
+            continue
+        self.abort()
+
     def abort(self):
-        """"""
+        """sets abort event to stop workers"""
         for ev in self.aborts:
             ev.set()
 
-    # todo figure out how to actually get this from a calling function
-    def cleanup_result_queue(self):
-        """"""
-        # todo: with single abort event only one thread gets terminated by the
-        #  setting of the event -> why is event setting not registered with the
-        #  other threads....
-        # get results while workers are active
-        while any([worker.is_alive() for worker in self.workers]):
-            if self.abort.is_set():
-                print([worker.is_alive() for worker in self.workers])
-            # print('results are being cleaned up')
-            if not self.result_queue.empty():
-                self.get_results()
-            else:
-                continue
-        # todo: is this necessary? Could there be still items in the result
-        #  queue when the while condition becomes false???
-        while not self.result_queue.empty():
-            self.get_results()
-
-        print('Finished! All responses stored in results attribute')
-
-    def get_results(self):
-        response = self.result_queue.get()
-        key = next(iter(response.keys()))
-        self.results[key].update(response[key])
