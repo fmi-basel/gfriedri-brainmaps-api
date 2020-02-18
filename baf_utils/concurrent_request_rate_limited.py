@@ -1,3 +1,5 @@
+import pickle
+
 from collections import deque
 from multiprocessing import cpu_count
 from queue import Queue
@@ -5,7 +7,6 @@ from requests.exceptions import HTTPError
 from statistics import median
 from threading import Thread, Event
 from timeit import default_timer as timer
-from time import sleep
 
 from brainmaps_api_fcn.basic_requests import EmptyResponse
 from baf_utils.utils import to_key
@@ -89,7 +90,7 @@ class RateLimitedRequestsThreadPool:
 
     """
 
-    def __init__(self, func, func_args, Nrequests=10 ** 4, period=100,
+    def __init__(self, func, func_args, log_file=None, Nrequests=10 ** 4, period=100,
                  use_bulk_requests=True, max_batch_size=50, max_workers=None):
         """
         Args:
@@ -128,11 +129,19 @@ class RateLimitedRequestsThreadPool:
         else:
             self.max_workers = max_workers
         self.workers = []
-        self.aborts = []
+        self.abort_events = []
+
+        self.log_file = log_file
         self.run_requests()
 
-        while any([worker.is_alive() for worker in self.workers]):
-            pass
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        self.abort()
+        if self.log_file:
+            with open(self.log_file, 'wb') as file:
+                pickle.dump(self.results, file)
 
     def start_queuing(self):
         """starts the thread that provides """
@@ -173,7 +182,7 @@ class RateLimitedRequestsThreadPool:
         """creates a thread pool of workers that start themselves"""
         for n in range(self.max_workers):
             abort = Event()
-            self.aborts.append(abort)
+            self.abort_events.append(abort)
             self.workers.append(
                 ThreadWithReturn(func=self.func, arg_queue=self.data_queue,
                                  # result_queue=self.result_queue,
@@ -191,6 +200,13 @@ class RateLimitedRequestsThreadPool:
 
     def abort(self):
         """sets abort event to stop workers"""
-        for ev in self.aborts:
+        for ev in self.abort_events:
             ev.set()
+
+    def return_data(self):
+        """blocks main thread until all worker finished, then returns results"""
+        print('running requests')
+        while any([worker.is_alive() for worker in self.workers]):
+            pass
+        return self.results
 
