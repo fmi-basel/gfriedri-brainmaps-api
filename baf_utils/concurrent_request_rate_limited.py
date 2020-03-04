@@ -1,6 +1,7 @@
 import pickle
 
 from collections import deque
+from datetime import datetime
 from multiprocessing import cpu_count
 from queue import Queue
 from requests.exceptions import HTTPError
@@ -17,13 +18,15 @@ class ThreadWithReturn(Thread):
     the request and stores it in deque
     """
 
-    def __init__(self, func, arg_queue, results_dict, request_durations, abort):
+    def __init__(self, func, arg_queue, results_dict, request_durations, abort,
+                 timestamp_queue):
         super(ThreadWithReturn, self).__init__()
         self.func = func
         self.arg_queue = arg_queue
         self.results = results_dict
         self.request_durations = request_durations
         self.abort = abort
+        self.timestamp_queue = timestamp_queue
         self.daemon = True
         self.start()
 
@@ -32,6 +35,7 @@ class ThreadWithReturn(Thread):
         the result_queue
         """
         while not self.abort.is_set():
+            self.timestamp_queue.append(datetime.now().timestamp())
             arg = self.arg_queue.get()
             key = 'errors'
             start = timer()
@@ -92,7 +96,7 @@ class RateLimitedRequestsThreadPool:
 
     def __init__(self, func, func_args, log_file=None, Nrequests=10 ** 4,
                  period=100, use_bulk_requests=True, max_batch_size=50,
-                 max_workers=None):
+                 max_workers=None, verbose=False):
         """
         Args:
             func: request function
@@ -119,6 +123,9 @@ class RateLimitedRequestsThreadPool:
         self.request_durations = deque(maxlen=self.min_requests)
         self._queuing_event = Event()
         self._queuing_interval = 1 / rate
+
+        self.verbose = verbose
+        self._request_timestamps = deque()
 
         self.start_queuing()
 
@@ -186,10 +193,10 @@ class RateLimitedRequestsThreadPool:
             self.abort_events.append(abort)
             self.workers.append(
                 ThreadWithReturn(func=self.func, arg_queue=self.data_queue,
-                                 # result_queue=self.result_queue,
                                  results_dict=self.results,
                                  request_durations=self.request_durations,
-                                 abort=abort)
+                                 abort=abort,
+                                 timestamp_queue=self._request_timestamps)
             )
 
     def check_all_done(self):
@@ -209,4 +216,15 @@ class RateLimitedRequestsThreadPool:
         print('running requests')
         while any([worker.is_alive() for worker in self.workers]):
             pass
-        return self.results
+        self.cleanup_response_data()
+        if self.verbose:
+            return self.results, self._request_timestamps
+        else:
+            return self.results
+
+    def cleanup_response_data(self):
+        """"""
+        data_dict = dict()
+        for values in self.results['data'].values():
+            data_dict.update(values)
+        self.results['data'] = data_dict
