@@ -94,7 +94,8 @@ class BrainMapsRequest:
                  service_account_secrets,
                  volume_id=None,
                  change_stack_id=None,
-                 project_id=None):
+                 project_id=None,
+                 **kwargs):
 
         self.base_url = 'https://brainmaps.googleapis.com/v1beta2'
         self.volume_id = volume_id
@@ -106,6 +107,8 @@ class BrainMapsRequest:
         # instantiate caller
         self._caller = AuthenticatedCall(
             service_account_secrets=service_account_secrets)
+        if 'max_repeat' in kwargs.keys():
+            self._caller.max_repeat = kwargs['max_repeat']
 
         # get/post aliases
         self.get_request = self._caller.get_request

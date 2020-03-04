@@ -90,8 +90,9 @@ class RateLimitedRequestsThreadPool:
 
     """
 
-    def __init__(self, func, func_args, log_file=None, Nrequests=10 ** 4, period=100,
-                 use_bulk_requests=True, max_batch_size=50, max_workers=None):
+    def __init__(self, func, func_args, log_file=None, Nrequests=10 ** 4,
+                 period=100, use_bulk_requests=True, max_batch_size=50,
+                 max_workers=None):
         """
         Args:
             func: request function
@@ -114,7 +115,7 @@ class RateLimitedRequestsThreadPool:
         self.use_bulk_requests = use_bulk_requests
         self.batch_size = 1
         self.max_batch_size = max_batch_size
-        self.min_requests = 15
+        self.min_requests = 10
         self.request_durations = deque(maxlen=self.min_requests)
         self._queuing_event = Event()
         self._queuing_interval = 1 / rate
@@ -209,4 +210,3 @@ class RateLimitedRequestsThreadPool:
         while any([worker.is_alive() for worker in self.workers]):
             pass
         return self.results
-
