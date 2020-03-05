@@ -36,6 +36,7 @@ class ThreadWithReturn(Thread):
         """
         while not self.abort.is_set():
             self.timestamp_queue.append(datetime.now().timestamp())
+            # ts = datetime.now().timestamp()
             arg = self.arg_queue.get()
             key = 'errors'
             start = timer()
@@ -54,6 +55,7 @@ class ThreadWithReturn(Thread):
                 response = 'exception raised: {}'.format(e)
                 stop = timer()
 
+            # self.timestamp_queue.append({to_key(arg): ts})
             self.request_durations.append(stop - start)
             self.results[key].update({to_key(arg): response})
 
@@ -208,6 +210,7 @@ class RateLimitedRequestsThreadPool:
 
     def abort(self):
         """sets abort event to stop workers"""
+        print('abort was called at ', datetime.now().time())
         for ev in self.abort_events:
             ev.set()
 
@@ -215,6 +218,7 @@ class RateLimitedRequestsThreadPool:
         """blocks main thread until all worker finished, then returns results"""
         print('running requests')
         while any([worker.is_alive() for worker in self.workers]):
+            # print([worker.is_alive() for worker in self.workers])
             pass
         self.cleanup_response_data()
         if self.verbose:
