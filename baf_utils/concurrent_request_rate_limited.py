@@ -3,7 +3,7 @@ import pickle
 from collections import deque
 from datetime import datetime
 from multiprocessing import cpu_count
-from queue import Queue
+from queue import Queue, Empty
 from requests.exceptions import HTTPError
 from statistics import median
 from threading import Thread, Event
@@ -11,6 +11,8 @@ from timeit import default_timer as timer
 
 from brainmaps_api_fcn.basic_requests import EmptyResponse
 from baf_utils.utils import to_key
+
+TIMEOUT = 2
 
 
 class ThreadWithReturn(Thread):
@@ -35,9 +37,11 @@ class ThreadWithReturn(Thread):
         the result_queue
         """
         while not self.abort.is_set():
-            self.timestamp_queue.append(datetime.now().timestamp())
-            # ts = datetime.now().timestamp()
-            arg = self.arg_queue.get()
+            ts = datetime.now().timestamp()
+            try:
+                arg = self.arg_queue.get(timeout=TIMEOUT)
+            except Empty:
+                continue
             key = 'errors'
             start = timer()
             try:
@@ -55,7 +59,7 @@ class ThreadWithReturn(Thread):
                 response = 'exception raised: {}'.format(e)
                 stop = timer()
 
-            # self.timestamp_queue.append({to_key(arg): ts})
+            self.timestamp_queue.append({to_key(arg): ts})
             self.request_durations.append(stop - start)
             self.results[key].update({to_key(arg): response})
 
@@ -148,7 +152,8 @@ class RateLimitedRequestsThreadPool:
         return self
 
     def __exit__(self, *args):
-        self.abort()
+        if any(not ev.is_set() for ev in self.abort_events):
+            self.abort()
         if self.log_file:
             with open(self.log_file, 'wb') as file:
                 pickle.dump(self.results, file)
@@ -190,6 +195,7 @@ class RateLimitedRequestsThreadPool:
 
     def run_requests(self):
         """creates a thread pool of workers that start themselves"""
+        print('starting requests')
         for n in range(self.max_workers):
             abort = Event()
             self.abort_events.append(abort)
@@ -216,9 +222,7 @@ class RateLimitedRequestsThreadPool:
 
     def return_data(self):
         """blocks main thread until all worker finished, then returns results"""
-        print('running requests')
         while any([worker.is_alive() for worker in self.workers]):
-            # print([worker.is_alive() for worker in self.workers])
             pass
         self.cleanup_response_data()
         if self.verbose:
@@ -227,7 +231,7 @@ class RateLimitedRequestsThreadPool:
             return self.results
 
     def cleanup_response_data(self):
-        """"""
+        """Creates a dict with key = request argument and value = responses"""
         data_dict = dict()
         for values in self.results['data'].values():
             data_dict.update(values)
