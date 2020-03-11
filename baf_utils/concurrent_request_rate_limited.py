@@ -120,6 +120,7 @@ class RateLimitedRequestsThreadPool:
         self.func_args = func_args
         # reduce queue size to half the number of requests per sec -> too small?
         self.data_queue = Queue(maxsize=round(rate / 2))
+        self.batched_requests = []
 
         # variables to measure speed of the request to finish
         self.use_bulk_requests = use_bulk_requests
@@ -174,8 +175,13 @@ class RateLimitedRequestsThreadPool:
                 next_item = self.func_args[:]
             else:
                 next_item = self.func_args[:self.batch_size]
+
+            if self.batch_size > 1:
+                self.batched_requests.append(to_key(next_item))
+
             self.func_args = self.func_args[self.batch_size:]
             self.data_queue.put(next_item)
+
         self.check_all_done()
 
     def determine_batch_size(self, max_dur=1):
@@ -232,7 +238,81 @@ class RateLimitedRequestsThreadPool:
 
     def cleanup_response_data(self):
         """Creates a dict with key = request argument and value = responses"""
+        # todo: verify that this works for all input argument list for the
+        #  brainmaps api requests (e.g. check meshes, skeletons)
         data_dict = dict()
         for values in self.results['data'].values():
             data_dict.update(values)
         self.results['data'] = data_dict
+
+        self.results['errors'] = self._flatten_batch_responses(
+            self.results['errors'])
+        req_time_stamp = dict()
+        for item in self._request_timestamps:
+            req_time_stamp.update(self._flatten_batch_responses(item))
+        self._request_timestamps = req_time_stamp
+
+    def _flatten_batch_responses(self, dict_in):
+        """"""
+        dict_out = dict()
+        for arg, value in dict_in.items():
+            if arg in self.batched_requests:
+                dict_out.update({single_arg: value for single_arg in arg})
+            else:
+                dict_out.update({arg: value})
+        return dict_out
+
+
+def run_pool(func, func_args, max_repeat=5, **kwargs):
+    """"""
+    results = {'data': dict(),
+               'errors': dict()}
+    time_stamps = dict()
+    verbose = False
+    if 'verbose' in kwargs.keys():
+        verbose = kwargs['verbose']
+
+    while max_repeat > 0 and len(func_args) > 0:
+        with RateLimitedRequestsThreadPool(func=func, func_args=func_args,
+                                           **kwargs) as obj:
+            return_values = obj.return_data()
+
+        max_repeat = max_repeat - 1
+        func_args = []
+
+        if verbose:
+            time_stamps.update(return_values[1])
+            return_values = return_values[0]
+        results['data'].update(return_values['data'])
+
+        if any(return_values['errors']):
+            func_args = list(return_values['errors'].keys())
+
+    if any(return_values['errors']):
+        results['errors'].update(return_values['errors'])
+
+    if verbose:
+        return results, time_stamps
+
+    return results
+
+# BrainMapsAPI requests to run this
+# set_equivalence: arg = edge, out = group_id,
+#                  RunConcurrentRequest input: list of edges
+# delete_equivalence: arg = edge, out = Http response,
+#                     RunConcurrentRequest input: list of edges - better use multidelete!
+# get_list: arg = segment, out = list of_edges.,
+#           RunConcurrentRequest input: list of segments
+# get_groups: arg = segment, out = list of segment,
+#             RunConcurrentRequest input: list of segments
+# get_maps: arg = segment, out = segment,
+#           RunConcurrentRequest input: list of segments
+# get_subvolume: args = corner, size, volume_datatype=np.uint64,
+#                out = array,
+#                RunConcurrentRequest input: list of corner size and data_type
+#                lists or tuples
+# download_skeleton: args = segment, out = nx graph,
+#                    RunConcurrentRequest input: list of segments
+# download mesh - for now can work with: args = segment, out = 2 arrays
+#                                        RunConcurrentRequest input: list of
+#                                        segments
