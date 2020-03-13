@@ -173,6 +173,9 @@ class RateLimitedRequestsThreadPool:
                 self._queuing_event.set()
             elif len(self.func_args) < self.batch_size:
                 next_item = self.func_args[:]
+            elif self.batch_size == 1:
+                # avoids lists of single integers as segment id response
+                next_item = self.func_args[0]
             else:
                 next_item = self.func_args[:self.batch_size]
 
@@ -237,7 +240,12 @@ class RateLimitedRequestsThreadPool:
             return self.results
 
     def cleanup_response_data(self):
-        """Creates a dict with key = request argument and value = responses"""
+        """Post-processes response data to return single & batch response in the
+        same format
+
+        Creates dictionaries with key = single request argument and
+        value = response
+        """
         # todo: verify that this works for all input argument list for the
         #  brainmaps api requests (e.g. check meshes, skeletons)
         data_dict = dict()
@@ -253,7 +261,7 @@ class RateLimitedRequestsThreadPool:
         self._request_timestamps = req_time_stamp
 
     def _flatten_batch_responses(self, dict_in):
-        """"""
+        """creates single dict entries for items in a batch request"""
         dict_out = dict()
         for arg, value in dict_in.items():
             if arg in self.batched_requests:
