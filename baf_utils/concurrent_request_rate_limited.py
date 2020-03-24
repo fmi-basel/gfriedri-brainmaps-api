@@ -49,7 +49,7 @@ class ThreadWithReturn(Thread):
                 stop = timer()
                 key = 'data'
             except EmptyResponse:
-                response = 'the response was returned empty'
+                response = 'EmptyResponse'
                 stop = timer()
             except HTTPError as httpe:
                 response = 'failed with code ' + str(
@@ -248,10 +248,11 @@ class RateLimitedRequestsThreadPool:
         """
         # todo: verify that this works for all input argument list for the
         #  brainmaps api requests (e.g. check meshes, skeletons)
-        data_dict = dict()
-        for values in self.results['data'].values():
-            data_dict.update(values)
-        self.results['data'] = data_dict
+        if all(isinstance(val, dict) for val in self.results['data'].values()):
+            data_dict = dict()
+            for values in self.results['data'].values():
+                data_dict.update(values)
+            self.results['data'] = data_dict
 
         self.results['errors'] = self._flatten_batch_responses(
             self.results['errors'])
@@ -294,7 +295,8 @@ def run_pool(func, func_args, max_repeat=5, **kwargs):
         results['data'].update(return_values['data'])
 
         if any(return_values['errors']):
-            func_args = list(return_values['errors'].keys())
+            func_args = [key for key, val in return_values['errors'].items() if
+                         not val == 'EmptyResponse']
 
     if any(return_values['errors']):
         results['errors'].update(return_values['errors'])
@@ -311,7 +313,7 @@ def run_pool(func, func_args, max_repeat=5, **kwargs):
 #                     RunConcurrentRequest input: list of edges - better use multidelete!
 # get_list: arg = segment, out = list of_edges.,
 #           RunConcurrentRequest input: list of segments
-# get_groups: arg = segment, out = list of segment,
+# get_groups: arg = segment, out = dict with segment: list of partners,
 #             RunConcurrentRequest input: list of segments
 # get_maps: arg = segment, out = segment,
 #           RunConcurrentRequest input: list of segments
