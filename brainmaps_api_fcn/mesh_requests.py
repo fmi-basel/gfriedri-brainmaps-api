@@ -36,13 +36,18 @@ class Meshes(BrainMapsRequest):
                   self.volume_id
             raise ValueError(msg)
 
-    def _get_fragment_list(self, sv_id, mesh_name):
+    def _get_fragment_list(self, sv_id, mesh_name, change_stack_id=None):
         """gets list of mesh fragments associated with segment sv_id
 
         Args:
             sv_id (int) : segment id
             mesh_name (str) : name of the mesh collection associated with the
                                 segmentation volume
+            change_stack_id (str, optional) : name of the change stack, if
+                                              given entire fragment list of the
+                                              agglomerated parent will be
+                                              downloaded
+
         Returns:
             fragments (list) : list of mesh fragment ids
         """
@@ -50,6 +55,8 @@ class Meshes(BrainMapsRequest):
             meshName=mesh_name)
         query_param = {'returnSupervoxelIds': True,
                        'objectId': str(sv_id)}
+        if change_stack_id:
+            query_param.update({'header.changeStackId': change_stack_id})
         resp = self.get_request(url, query_param)
         # unknown sv_id returns fragmentKey = ['0000000000000000'] not an error
         if not resp.json() or resp.json()['fragmentKey'] == [
@@ -119,7 +126,7 @@ class Meshes(BrainMapsRequest):
                 'The API response is empty. Check input variables')
         return bytearray(resp.content)
 
-    def download_mesh(self, sv_id):
+    def download_mesh(self, sv_id, change_stack_id=None):
         """Returns the mesh for segment sv_id
 
         Meshes of one segment are usually split into several fragments. To
@@ -134,6 +141,10 @@ class Meshes(BrainMapsRequest):
             change_stack_id (str) : id of the agglomeration change stack
             service_account (str) : path to the service account json in order to
                                     authenticate through Google OAuth2
+            change_stack_id (str, optional) : name of the change stack, if
+                                  given entire mesh of the
+                                  agglomerated parent will be
+                                  downloaded
 
         Returns:
             vertices (np.array) : all vertices of the mesh in [x,y,z] voxel
@@ -141,7 +152,7 @@ class Meshes(BrainMapsRequest):
             indices (np.array) : indices of the mesh
         """
         mesh_name = self._get_mesh_name()
-        fragments = self._get_fragment_list(sv_id, mesh_name)
+        fragments = self._get_fragment_list(sv_id, mesh_name, change_stack_id)
         bytestream = self._get_mesh_fragment(sv_id, mesh_name, fragments)
         vertices = []
         indices = []
