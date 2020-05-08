@@ -82,7 +82,7 @@ class EquivalenceRequests(BrainMapsRequest):
                              'ids or two xyz coordinates which are supposed to '
                              'be linked')
 
-        if all([len(item) == 3 for item in edge]):
+        if all([len(int_to_list(item)) == 3 for item in edge]):
             if all([check_convertible_to_int(coord) for coord in edge]):
                 edge_keys = ["firstLocation", "secondLocation"]
                 edge = [', '.join(str(int(x)) for x in coord) for coord in
