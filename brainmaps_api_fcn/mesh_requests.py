@@ -28,9 +28,12 @@ class Meshes(BrainMapsRequest):
         resp = self.get_request(url)
         if not resp.json():
             raise EmptyResponse('The API response is empty')
+        name_list = []
         for x in resp.json()['meshes']:
             if x['type'] == mesh_type:
-                return x['name']
+                name_list.append(x['name'])
+        if name_list:
+            return name_list
         else:
             msg = 'Meshes of type ' + mesh_type + ' not found for volume ' + \
                   self.volume_id
@@ -151,7 +154,7 @@ class Meshes(BrainMapsRequest):
                                     coordinates
             indices (np.array) : indices of the mesh
         """
-        mesh_name = self._get_mesh_name()
+        mesh_name = self._get_mesh_name()[0]
         fragments = self._get_fragment_list(sv_id, mesh_name, change_stack_id)
         bytestream = self._get_mesh_fragment(sv_id, mesh_name, fragments)
         vertices = []
@@ -222,7 +225,7 @@ class Meshes(BrainMapsRequest):
                 'The API response is empty. Check input variables')
         return resp.json()
 
-    def download_skeleton(self, sv_id):
+    def download_skeleton(self, sv_id, mesh_name=None):
         """Downloads skeleton of segment sv_id and returns it as graph
 
         Args:
@@ -237,6 +240,7 @@ class Meshes(BrainMapsRequest):
                             attribute "pos",  edges store edge length in weight
                             attribute
          """
-        mesh_name = self._get_mesh_name(mesh_type='LINE_SEGMENTS')
+        if mesh_name is None:
+            mesh_name = self._get_mesh_name(mesh_type='LINE_SEGMENTS')[0]
         skel_json = self._fetch_skeleton(sv_id, mesh_name)
         return self._graph_from_skel_json(skel_json)

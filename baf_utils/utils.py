@@ -2,7 +2,7 @@ from typing import Iterable, Hashable
 
 
 def to_tuple(lst):
-    return tuple(to_tuple(i) if isinstance(i, Iterable) else i for i in lst)
+    return tuple(to_tuple(i) if isinstance(i, Iterable) and not isinstance(i, str) else i for i in lst)
 
 
 def to_key(item):
