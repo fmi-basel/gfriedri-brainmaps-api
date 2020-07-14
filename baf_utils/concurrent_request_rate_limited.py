@@ -21,7 +21,7 @@ class ThreadWithReturn(Thread):
     """
 
     def __init__(self, func, arg_queue, results_dict, request_durations, abort,
-                 timestamp_queue):
+                 timestamp_queue, unpack=False):
         super(ThreadWithReturn, self).__init__()
         self.func = func
         self.arg_queue = arg_queue
@@ -29,6 +29,7 @@ class ThreadWithReturn(Thread):
         self.request_durations = request_durations
         self.abort = abort
         self.timestamp_queue = timestamp_queue
+        self.unpack = unpack
         self.daemon = True
         self.start()
 
@@ -45,7 +46,12 @@ class ThreadWithReturn(Thread):
             key = 'errors'
             start = timer()
             try:
-                response = self.func(arg)
+                if self.unpack:
+                    print('before unpacking args=',arg, flush=True)
+                    response = self.func(*arg)
+                    print('got past unpacking *',flush=True)
+                else:
+                    response = self.func(arg)
                 stop = timer()
                 key = 'data'
             except EmptyResponse:
@@ -102,7 +108,7 @@ class RateLimitedRequestsThreadPool:
 
     def __init__(self, func, func_args, log_file=None, Nrequests=10 ** 4,
                  period=100, use_bulk_requests=True, max_batch_size=50,
-                 max_workers=None, verbose=False):
+                 max_workers=None, verbose=False, unpack=False):
         """
         Args:
             func: request function
@@ -132,6 +138,7 @@ class RateLimitedRequestsThreadPool:
         self._queuing_interval = 1 / rate
 
         self.verbose = verbose
+        self.unpack = unpack
         self._request_timestamps = deque()
 
         self.start_queuing()
@@ -213,7 +220,8 @@ class RateLimitedRequestsThreadPool:
                                  results_dict=self.results,
                                  request_durations=self.request_durations,
                                  abort=abort,
-                                 timestamp_queue=self._request_timestamps)
+                                 timestamp_queue=self._request_timestamps,
+                                 unpack=self.unpack)
             )
 
     def check_all_done(self):

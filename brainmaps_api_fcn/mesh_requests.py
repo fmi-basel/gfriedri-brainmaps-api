@@ -242,15 +242,14 @@ class Meshes(BrainMapsRequest):
                 supervoxel_ids, fragments)
             bytestream = self._get_mesh_fragment(mesh_name, batches)
             for j in range(len(batches)):
-                print('object', j, len(bytestream))
                 bytestream, ind, vert = self._mesh_from_stream(bytestream)
                 vertices += (vert)
                 indices += ind
             if not supervoxel_ids:
                 data_to_query = False
 
-        vertices = np.array(vertices).reshape(max(1, int(len(vertices) / 3)), 3)
-        indices = np.array(indices).reshape(max(1, int(len(indices) / 3)), 3)
+        vertices = np.array(vertices).reshape(max(1, int(len(vertices) / 3)), 3).astype(int)
+        indices = np.array(indices).reshape(max(1, int(len(indices) / 3)), 3).astype(int)
         return vertices, indices
 
     # SKELETONS
