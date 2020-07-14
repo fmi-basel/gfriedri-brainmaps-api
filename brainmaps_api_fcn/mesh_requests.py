@@ -9,74 +9,29 @@ class Meshes(BrainMapsRequest):
         super(Meshes, self).__init__(
             service_account_secrets=service_account_secrets,
             volume_id=volume_id, **kwargs)
+        if 'fragment_limit' in kwargs.keys():
+            self.max_fragments = kwargs['fragment_limit']
+        else:
+            self.max_fragments = 256
 
     @property
     def mesh_base_url(self):
         return self.base_url + '/objects/{}/meshes'.format(self.volume_id)
 
-    def _get_mesh_name(self, mesh_type='TRIANGLES'):
-        """retrieves name of the mesh collection for the segmentation volume
-
-        Args:
-            mesh_type (str) : indicates mesh type for which collection name is
-                                retrieved: 'TRIANGLES' for volumetric meshes and
-                                'LINE_SEGMENTS' for skeleton meshes
-        Returns:
-            str : mesh_name
-        """
-        url = self.mesh_base_url
-        resp = self.get_request(url)
-        if not resp.json():
-            raise EmptyResponse('The API response is empty')
-        name_list = []
-        for x in resp.json()['meshes']:
-            if x['type'] == mesh_type:
-                name_list.append(x['name'])
-        if name_list:
-            return name_list
-        else:
-            msg = 'Meshes of type ' + mesh_type + ' not found for volume ' + \
-                  self.volume_id
-            raise ValueError(msg)
-
-    def _get_fragment_list(self, sv_id, mesh_name, change_stack_id=None):
-        """gets list of mesh fragments associated with segment sv_id
-
-        Args:
-            sv_id (int) : segment id
-            mesh_name (str) : name of the mesh collection associated with the
-                                segmentation volume
-            change_stack_id (str, optional) : name of the change stack, if
-                                              given entire fragment list of the
-                                              agglomerated parent will be
-                                              downloaded
-
-        Returns:
-            fragments (list) : list of mesh fragment ids
-        """
-        url = self.mesh_base_url + '/{meshName}:listfragments'.format(
-            meshName=mesh_name)
-        query_param = {'returnSupervoxelIds': True,
-                       'objectId': str(sv_id)}
-        if change_stack_id:
-            query_param.update({'header.changeStackId': change_stack_id})
-        resp = self.get_request(url, query_param)
-        # unknown sv_id returns fragmentKey = ['0000000000000000'] not an error
-        if not resp.json() or resp.json()['fragmentKey'] == [
-            '0000000000000000'
-        ]:
-            raise EmptyResponse(
-                'The API request did not return anything (useful)')
-
-        return resp.json()['fragmentKey']
-
-    # TRIANGLE MESHES
     @staticmethod
     def _mesh_from_stream(bytestream):
         """reads out a single mesh fragment from bytestream
 
         Args:
-            bytestream (bytearray) : contains mesh information
+            bytestream(bytearray): contains mesh information in following
+                                   form:
+                            1. 8 bytes: object ID in uint64
+                            2. 8 bytes: length of fragment ID/name xx in uint64
+                            3. xx entries: fragment ID/name in char -> 'xxs'
+                            4. 8 bytes: number of vertices yy in uint64
+                            5. 8 bytes: number of indices zz in uint64
+                            6. 3*4 bytes*yy entries: vertices in XYZ triplets
+                            7. 3*4 bytes*zz entries: indices in vertex triplets
 
         Returns:
             bytestream (bytearray) : contains information of remaining fragments
@@ -102,73 +57,6 @@ class Meshes(BrainMapsRequest):
         del bytestream[:float_size * no_idx * 3]
         return bytestream, indices, vertices
 
-    def _get_mesh_fragment(self, sv_id, mesh_name, fragments):
-        """gets list of mesh fragments associated with segment sv_id
-
-        Args:
-            sv_id (int) : segment id
-            mesh_name (str) : name of the mesh collection associated with the
-                                segmentation volume
-            fragments (list) : list of mesh fragment ids
-
-        Returns:
-            bytearray containing the information of the triangle mesh
-            represenation
-        """
-        url = self.base_url + '/objects/meshes:batch'
-        batchmeshfragment = {'objectId': str(sv_id),
-                             'fragmentKeys': fragments}
-        req_body = {
-            'volumeId': self.volume_id,
-            'meshName': mesh_name,
-            'batches': [batchmeshfragment]
-        }
-        resp = self.post_request(url, req_body)
-        if not any(resp.content):
-            raise EmptyResponse(
-                'The API response is empty. Check input variables')
-        return bytearray(resp.content)
-
-    def download_mesh(self, sv_id, change_stack_id=None):
-        """Returns the mesh for segment sv_id
-
-        Meshes of one segment are usually split into several fragments. To
-        retrieve the mesh of a particular segment one needs to first retrieve
-        the name of the mesh collection associated with a segmentation volume.
-        From this the list of fragments into which segment sv_id has been split
-        can be retrieved in order to download the meshes.
-
-        Args:
-            sv_id (int) : segment id
-            volume_id (str) : id of the base segmentation volume
-            change_stack_id (str) : id of the agglomeration change stack
-            service_account (str) : path to the service account json in order to
-                                    authenticate through Google OAuth2
-            change_stack_id (str, optional) : name of the change stack, if
-                                  given entire mesh of the
-                                  agglomerated parent will be
-                                  downloaded
-
-        Returns:
-            vertices (np.array) : all vertices of the mesh in [x,y,z] voxel
-                                    coordinates
-            indices (np.array) : indices of the mesh
-        """
-        mesh_name = self._get_mesh_name()[0]
-        fragments = self._get_fragment_list(sv_id, mesh_name, change_stack_id)
-        bytestream = self._get_mesh_fragment(sv_id, mesh_name, fragments)
-        vertices = []
-        indices = []
-        for _ in range(len(fragments)):
-            bytestream, ind, vert = self._mesh_from_stream(bytestream)
-            vertices += (vert)
-            indices += ind
-
-        vertices = np.array(vertices).reshape(max(1, int(len(vertices) / 3)), 3)
-        indices = np.array(indices).reshape(max(1, int(len(indices) / 3)), 3)
-        return vertices, indices
-
-    # SKELETONS
     @staticmethod
     def _graph_from_skel_json(skel_json):
         """Creates a networkx graph from skeleton json
@@ -201,6 +89,171 @@ class Meshes(BrainMapsRequest):
             skel_graph.add_edge(source_node, target_node, weight=dist)
         return skel_graph
 
+    def _get_mesh_name(self, mesh_type='TRIANGLES'):
+        """retrieves name of the mesh collection for the segmentation volume
+
+        Args:
+            mesh_type (str) : indicates mesh type for which collection name is
+                                retrieved: 'TRIANGLES' for volumetric meshes and
+                                'LINE_SEGMENTS' for skeleton meshes
+        Returns:
+            str : mesh_name
+        """
+        url = self.mesh_base_url
+        resp = self.get_request(url)
+        if not resp.json():
+            raise EmptyResponse('The API response is empty')
+        name_list = []
+        for x in resp.json()['meshes']:
+            if x['type'] == mesh_type:
+                name_list.append(x['name'])
+        if name_list:
+            return name_list
+        else:
+            msg = 'Meshes of type ' + mesh_type + ' not found for volume ' + \
+                  self.volume_id
+            raise ValueError(msg)
+
+    # TRIANGLE MESHES
+    def _get_fragment_list(self, segment_id, mesh_name, change_stack_id=None):
+        """gets list of mesh fragments associated with segment sv_id
+
+        Args:
+            segment_id (int) : segment id
+            mesh_name (str) : name of the mesh collection associated with the
+                                segmentation volume
+            change_stack_id (str, optional) : name of the change stack, if
+                                              given entire fragment list of the
+                                              agglomerated parent will be
+                                              downloaded
+
+        Returns:
+            fragments (list) : list of mesh fragment ids
+        """
+        url = self.mesh_base_url + '/{meshName}:listfragments'.format(
+            meshName=mesh_name)
+        query_param = {'returnSupervoxelIds': True,
+                       'objectId': str(segment_id)}
+        if change_stack_id:
+            query_param.update({'header.changeStackId': change_stack_id})
+        resp = self.get_request(url, query_param)
+        # unknown sv_id returns fragmentKey = ['0000000000000000'] not an error
+        if not resp.json() or resp.json()['fragmentKey'] == [
+            '0000000000000000'
+        ]:
+            raise EmptyResponse(
+                'The API request did not return anything (useful)')
+
+        return resp.json()['supervoxelId'], resp.json()['fragmentKey']
+        # fragm_dict = dict()
+        # for obj_id, fr_key in zip(resp.json()['supervoxelId'],resp.json()['fragmentKey']):
+        #     if obj_id not in fragm_dict.keys():
+        #         fragm_dict[obj_id] = [fr_key]
+        #     else:
+        #         fragm_dict[obj_id].append(fr_key)
+        # return fragm_dict
+
+    def make_query_package(self, supervoxel_ids, fragments):
+        """"""
+        batches = []
+        space_left = self.max_fragments
+        fragment_lst = []
+        prev_obj = supervoxel_ids[0]
+        while any(supervoxel_ids):
+            cur_obj = supervoxel_ids[0]
+            if cur_obj == prev_obj:
+                fragment_lst.append(fragments[0])
+            else:
+                batches.append({'objectId': prev_obj,
+                                'fragmentKeys': fragment_lst})
+                prev_obj = cur_obj
+                fragment_lst = [fragments[0]]
+            supervoxel_ids.pop(0)
+            fragments.pop(0)
+            space_left -= 1
+            if space_left == 0:
+                break
+        return batches, supervoxel_ids, fragments
+
+    def _get_mesh_fragment(self, mesh_name, batches):
+        """gets list of mesh fragments associated with segment sv_id
+
+        Args:
+            mesh_name (str) : name of the mesh collection associated with the
+                                segmentation volume
+            batches (list) : list of dictionaries for mesh batch
+                                       requests:
+                                       [{'objectId': supervoxel_id,
+                                         'fragmentKeys': [fragmentkey1,
+                                                          fragmentkey2,...]
+                                        },...
+                                       ]
+
+        Returns:
+            bytearray containing the information of the triangle mesh
+            representation
+        """
+        url = self.base_url + '/objects/meshes:batch'
+        req_body = {
+            'volumeId': self.volume_id,
+            'meshName': mesh_name,
+            'batches': batches
+        }
+        resp = self.post_request(url, req_body)
+        if not any(resp.content):
+            raise EmptyResponse(
+                'The API response is empty. Check input variables')
+        return bytearray(resp.content)
+
+    def download_mesh(self, segment_id, change_stack_id=None):
+        """Returns the mesh for segment sv_id
+
+        Meshes of one segment are usually split into several fragments. To
+        retrieve the mesh of a particular segment one needs to first retrieve
+        the name of the mesh collection associated with a segmentation volume.
+        From this the list of fragments into which segment sv_id has been split
+        can be retrieved in order to download the meshes.
+
+        Args:
+            segment_id (int) : segment id
+            volume_id (str) : id of the base segmentation volume
+            change_stack_id (str) : id of the agglomeration change stack
+            service_account (str) : path to the service account json in order to
+                                    authenticate through Google OAuth2
+            change_stack_id (str, optional) : name of the change stack, if
+                                  given entire mesh of the
+                                  agglomerated parent will be
+                                  downloaded
+
+        Returns:
+            vertices (np.array) : all vertices of the mesh in [x,y,z] voxel
+                                    coordinates
+            indices (np.array) : indices of the mesh
+        """
+        mesh_name = self._get_mesh_name()[0]
+        supervoxel_ids, fragments = self._get_fragment_list(segment_id,
+                                                            mesh_name,
+                                                            change_stack_id)
+        vertices = []
+        indices = []
+        data_to_query = True
+        while data_to_query:
+            batches, supervoxel_ids, fragments = self.make_query_package(
+                supervoxel_ids, fragments)
+            bytestream = self._get_mesh_fragment(mesh_name, batches)
+            for j in range(len(batches)):
+                print('object', j, len(bytestream))
+                bytestream, ind, vert = self._mesh_from_stream(bytestream)
+                vertices += (vert)
+                indices += ind
+            if not supervoxel_ids:
+                data_to_query = False
+
+        vertices = np.array(vertices).reshape(max(1, int(len(vertices) / 3)), 3)
+        indices = np.array(indices).reshape(max(1, int(len(indices) / 3)), 3)
+        return vertices, indices
+
+    # SKELETONS
     def _fetch_skeleton(self, sv_id, mesh_name):
         """Downloads skeleton for single segment
 
@@ -244,3 +297,4 @@ class Meshes(BrainMapsRequest):
             mesh_name = self._get_mesh_name(mesh_type='LINE_SEGMENTS')[0]
         skel_json = self._fetch_skeleton(sv_id, mesh_name)
         return self._graph_from_skel_json(skel_json)
+
