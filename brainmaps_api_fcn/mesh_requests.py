@@ -55,6 +55,13 @@ class Meshes(BrainMapsRequest):
             struct.unpack("<" + str(no_idx * 3) + 'i',
                           bytestream[:float_size * no_idx * 3]))
         del bytestream[:float_size * no_idx * 3]
+
+        # convert to array and reshape
+        vertices = np.array(vertices).reshape(max(1, no_vert),
+                                              3).astype(int)
+        indices = np.array(indices).reshape(max(1, no_idx),
+                                            3).astype(int)
+
         return bytestream, indices, vertices
 
     @staticmethod
@@ -145,13 +152,6 @@ class Meshes(BrainMapsRequest):
                 'The API request did not return anything (useful)')
 
         return resp.json()['supervoxelId'], resp.json()['fragmentKey']
-        # fragm_dict = dict()
-        # for obj_id, fr_key in zip(resp.json()['supervoxelId'],resp.json()['fragmentKey']):
-        #     if obj_id not in fragm_dict.keys():
-        #         fragm_dict[obj_id] = [fr_key]
-        #     else:
-        #         fragm_dict[obj_id].append(fr_key)
-        # return fragm_dict
 
     def make_query_package(self, supervoxel_ids, fragments):
         """"""
@@ -173,7 +173,40 @@ class Meshes(BrainMapsRequest):
             space_left -= 1
             if space_left == 0:
                 break
+        # append last entry
+        batches.append({'objectId': cur_obj,
+                        'fragmentKeys': fragment_lst})
         return batches, supervoxel_ids, fragments
+
+    def _get_mesh_fragment(self, mesh_name, batches):
+        """gets list of mesh fragments associated with segment sv_id
+
+        Args:
+            mesh_name (str) : name of the mesh collection associated with the
+                                segmentation volume
+            batches (list) : list of dictionaries for mesh batch
+                                       requests:
+                                       [{'objectId': supervoxel_id,
+                                         'fragmentKeys': [fragmentkey1,
+                                                          fragmentkey2,...]
+                                        },...
+                                       ]
+
+        Returns:
+            bytearray containing the information of the triangle mesh
+            representation
+        """
+        url = self.base_url + '/objects/meshes:batch'
+        req_body = {
+            'volumeId': self.volume_id,
+            'meshName': mesh_name,
+            'batches': batches
+        }
+        resp = self.post_request(url, req_body)
+        if not any(resp.content):
+            raise EmptyResponse(
+                'The API response is empty. Check input variables')
+        return bytearray(resp.content)
 
     def _get_mesh_fragment(self, mesh_name, batches):
         """gets list of mesh fragments associated with segment sv_id
@@ -234,22 +267,21 @@ class Meshes(BrainMapsRequest):
         supervoxel_ids, fragments = self._get_fragment_list(segment_id,
                                                             mesh_name,
                                                             change_stack_id)
-        vertices = []
-        indices = []
+        vertices = np.empty((0, 3), int)
+        indices = np.empty((0, 3), int)
         data_to_query = True
         while data_to_query:
+            n_fragments = min(len(fragments), self.max_fragments)
             batches, supervoxel_ids, fragments = self.make_query_package(
                 supervoxel_ids, fragments)
             bytestream = self._get_mesh_fragment(mesh_name, batches)
-            for j in range(len(batches)):
+            for j in range(n_fragments):
                 bytestream, ind, vert = self._mesh_from_stream(bytestream)
-                vertices += (vert)
-                indices += ind
+                indices = np.append(indices, ind+vertices.shape[0], axis=0)
+                vertices = np.append(vertices, vert, axis=0)
             if not supervoxel_ids:
                 data_to_query = False
 
-        vertices = np.array(vertices).reshape(max(1, int(len(vertices) / 3)), 3).astype(int)
-        indices = np.array(indices).reshape(max(1, int(len(indices) / 3)), 3).astype(int)
         return vertices, indices
 
     # SKELETONS
@@ -296,4 +328,3 @@ class Meshes(BrainMapsRequest):
             mesh_name = self._get_mesh_name(mesh_type='LINE_SEGMENTS')[0]
         skel_json = self._fetch_skeleton(sv_id, mesh_name)
         return self._graph_from_skel_json(skel_json)
-
