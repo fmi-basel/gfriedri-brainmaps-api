@@ -14,7 +14,7 @@ from baf_utils.utils import to_key
 
 TIMEOUT = 2
 
-
+# in print statements from threads add flush=True
 class ThreadWithReturn(Thread):
     """Thread that writes return valus to dictionary, stops time it takes for
     the request and stores it in deque
@@ -47,13 +47,12 @@ class ThreadWithReturn(Thread):
             start = timer()
             try:
                 if self.unpack:
-                    print('before unpacking args=',arg, flush=True)
                     response = self.func(*arg)
-                    print('got past unpacking *',flush=True)
                 else:
                     response = self.func(arg)
                 stop = timer()
                 key = 'data'
+                print('processing', arg, 'done', flush=True)
             except EmptyResponse:
                 response = 'EmptyResponse'
                 stop = timer()

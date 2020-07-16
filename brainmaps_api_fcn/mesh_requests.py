@@ -65,7 +65,7 @@ class Meshes(BrainMapsRequest):
         return bytestream, indices, vertices
 
     @staticmethod
-    def _graph_from_skel_json(skel_json, pixel_size=None):
+    def _graph_from_skel_json(skel_json):
         """Creates a networkx graph from skeleton json
 
         Args:
@@ -77,8 +77,6 @@ class Meshes(BrainMapsRequest):
                                         coordinates in attribute "pos",  edges
                                         store edge length in weight attribute
         """
-        if pixel_size is None:
-            pixel_size = [9, 9, 25]
         skel_graph = nx.Graph()
         nedges = int(len(skel_json['skeleton']['indices']) / 2)
         edges = np.array(skel_json['skeleton']['indices']).reshape(nedges, 2)
@@ -86,7 +84,7 @@ class Meshes(BrainMapsRequest):
 
         nnodes = int(len(skel_json['skeleton']['vertices']) / 3)
         node_coord = np.array(skel_json['skeleton']['vertices']).reshape(nnodes,
-                                                                         3) / pixel_size
+                                                                         3)
 
         # add position as node attribute
         for i in range(nnodes):
@@ -313,7 +311,7 @@ class Meshes(BrainMapsRequest):
                 'The API response is empty. Check input variables')
         return resp.json()
 
-    def download_skeleton(self, sv_id, mesh_name=None, pixel_size=None):
+    def download_skeleton(self, sv_id, mesh_name=None):
         """Downloads skeleton of segment sv_id and returns it as graph
 
         Args:
@@ -331,4 +329,4 @@ class Meshes(BrainMapsRequest):
         if mesh_name is None:
             mesh_name = self._get_mesh_name(mesh_type='LINE_SEGMENTS')[0]
         skel_json = self._fetch_skeleton(sv_id, mesh_name)
-        return self._graph_from_skel_json(skel_json, pixel_size)
+        return self._graph_from_skel_json(skel_json)
