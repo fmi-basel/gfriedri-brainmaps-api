@@ -65,7 +65,7 @@ class Meshes(BrainMapsRequest):
         return bytestream, indices, vertices
 
     @staticmethod
-    def _graph_from_skel_json(skel_json):
+    def _graph_from_skel_json(skel_json, pixel_size=None):
         """Creates a networkx graph from skeleton json
 
         Args:
@@ -77,23 +77,27 @@ class Meshes(BrainMapsRequest):
                                         coordinates in attribute "pos",  edges
                                         store edge length in weight attribute
         """
-        skel_graph = nx.DiGraph()
-        nnodes = int(len(skel_json['skeleton']['vertices']) / 3)
-        for i in range(nnodes):
-            idx = 3 * i
-            skel_graph.add_node(i,
-                                pos=skel_json['skeleton']['vertices'][idx:3 +
-                                                                          idx])
+        if pixel_size is None:
+            pixel_size = [9, 9, 25]
+        skel_graph = nx.Graph()
         nedges = int(len(skel_json['skeleton']['indices']) / 2)
-        for i in range(nedges):
-            idx = 2 * i
-            source_node = skel_json['skeleton']['indices'][idx]
-            target_node = skel_json['skeleton']['indices'][idx + 1]
-            dist = np.linalg.norm([
-                x1 - x2 for x1, x2 in zip(skel_graph.nodes[target_node]['pos'],
-                                          skel_graph.nodes[source_node]['pos'])
-            ])
-            skel_graph.add_edge(source_node, target_node, weight=dist)
+        edges = np.array(skel_json['skeleton']['indices']).reshape(nedges, 2)
+        skel_graph.add_edges_from(edges)
+
+        nnodes = int(len(skel_json['skeleton']['vertices']) / 3)
+        node_coord = np.array(skel_json['skeleton']['vertices']).reshape(nnodes,
+                                                                         3) / pixel_size
+
+        # add position as node attribute
+        for i in range(nnodes):
+            skel_graph.node[i]['pos'] = list(node_coord[i].astype(int))
+
+        # add edge length in nm as edge attribute
+        for u, v in skel_graph.edges:
+            skel_graph[u][v]['weight'] = np.linalg.norm([
+                    x1 - x2 for x1, x2 in zip(skel_graph.nodes[v]['pos'],
+                                              skel_graph.nodes[u]['pos'])
+                ])
         return skel_graph
 
     def _get_mesh_name(self, mesh_type='TRIANGLES'):
@@ -277,7 +281,7 @@ class Meshes(BrainMapsRequest):
             bytestream = self._get_mesh_fragment(mesh_name, batches)
             for j in range(n_fragments):
                 bytestream, ind, vert = self._mesh_from_stream(bytestream)
-                indices = np.append(indices, ind+vertices.shape[0], axis=0)
+                indices = np.append(indices, ind + vertices.shape[0], axis=0)
                 vertices = np.append(vertices, vert, axis=0)
             if not supervoxel_ids:
                 data_to_query = False
@@ -309,7 +313,7 @@ class Meshes(BrainMapsRequest):
                 'The API response is empty. Check input variables')
         return resp.json()
 
-    def download_skeleton(self, sv_id, mesh_name=None):
+    def download_skeleton(self, sv_id, mesh_name=None, pixel_size=None):
         """Downloads skeleton of segment sv_id and returns it as graph
 
         Args:
@@ -327,4 +331,4 @@ class Meshes(BrainMapsRequest):
         if mesh_name is None:
             mesh_name = self._get_mesh_name(mesh_type='LINE_SEGMENTS')[0]
         skel_json = self._fetch_skeleton(sv_id, mesh_name)
-        return self._graph_from_skel_json(skel_json)
+        return self._graph_from_skel_json(skel_json, pixel_size)
