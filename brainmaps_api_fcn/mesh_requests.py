@@ -88,7 +88,7 @@ class Meshes(BrainMapsRequest):
 
         # add position as node attribute
         for i in range(nnodes):
-            skel_graph.node[i]['pos'] = list(node_coord[i].astype(int))
+            skel_graph.nodes[i]['pos'] = list(node_coord[i].astype(int))
 
         # add edge length in nm as edge attribute
         for u, v in skel_graph.edges:
