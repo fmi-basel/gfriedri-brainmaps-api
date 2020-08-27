@@ -27,7 +27,9 @@ class RunConcurrentRequest:
                           function
 
     """
-    def __init__(self, request_fcn, args, log_file=None, unpack=False):
+
+    def __init__(self, request_fcn, args, log_file=None, unpack=False,
+                 max_worker=None):
         """initiates RunConcurrentRequests
 
         Args:
@@ -46,6 +48,7 @@ class RunConcurrentRequest:
         self.log_file = log_file
         self.request_fcn = request_fcn
         self.unpack = unpack
+        self.max_workers = max_worker
 
     def __enter__(self):
         return self
@@ -65,7 +68,7 @@ class RunConcurrentRequest:
                 'errors'(dict): keys: argument from args,
                                 value: error code of failed requests
         """
-        with ThreadPoolExecutor() as executor:
+        with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
             if self.unpack:
                 future_iterable = {
                     executor.submit(lambda p: self.request_fcn(*p), item): item
@@ -90,7 +93,6 @@ class RunConcurrentRequest:
                         key] = 'failed with code ' + str(
                         httpe.response.status_code)
         return self.response_data
-
 
 # BrainMapsAPI requests to run this
 # set_equivalence: arg = edge, out = group_id,

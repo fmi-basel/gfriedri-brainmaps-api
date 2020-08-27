@@ -210,36 +210,6 @@ class Meshes(BrainMapsRequest):
                 'The API response is empty. Check input variables')
         return bytearray(resp.content)
 
-    def _get_mesh_fragment(self, mesh_name, batches):
-        """gets list of mesh fragments associated with segment sv_id
-
-        Args:
-            mesh_name (str) : name of the mesh collection associated with the
-                                segmentation volume
-            batches (list) : list of dictionaries for mesh batch
-                                       requests:
-                                       [{'objectId': supervoxel_id,
-                                         'fragmentKeys': [fragmentkey1,
-                                                          fragmentkey2,...]
-                                        },...
-                                       ]
-
-        Returns:
-            bytearray containing the information of the triangle mesh
-            representation
-        """
-        url = self.base_url + '/objects/meshes:batch'
-        req_body = {
-            'volumeId': self.volume_id,
-            'meshName': mesh_name,
-            'batches': batches
-        }
-        resp = self.post_request(url, req_body)
-        if not any(resp.content):
-            raise EmptyResponse(
-                'The API response is empty. Check input variables')
-        return bytearray(resp.content)
-
     def download_mesh(self, segment_id, change_stack_id=None):
         """Returns the mesh for segment sv_id
 

@@ -34,7 +34,7 @@ class SubvolumeRequest(BrainMapsRequest):
                                                service_account_secrets=service_account_secrets,
                                                **kwargs)
 
-    def get_subvolume(self, corner, size, volume_datatype=np.uint64):
+    def get_subvolume(self, corner, size, volume_datatype=np.uint64, change_stack_id=None):
         """Downloads subvolume of image data
 
         Args:
@@ -60,6 +60,8 @@ class SubvolumeRequest(BrainMapsRequest):
             },
             'subvolumeFormat': sv_format,
         }
+        if change_stack_id is not None:
+            body.update({'changeSpec': {'changeStackId': change_stack_id}})
         resp = self.post_request(url, body)
         if snappy_:
             data = snappy.decompress(resp.content)
