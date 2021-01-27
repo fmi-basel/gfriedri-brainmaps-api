@@ -1,6 +1,7 @@
+import numpy as np
 import pickle
 
-from collections import deque
+from collections import deque, Iterable
 from datetime import datetime
 from multiprocessing import cpu_count
 from queue import Queue, Empty
@@ -14,6 +15,22 @@ from baf_utils.utils import to_key
 
 TIMEOUT = 2
 
+# helper function to convert single entries of batch requests to same type as in
+# single requests
+def conv_type(val, typ):
+    """"""
+    if isinstance(typ, list):
+        return [val]
+    if isinstance(typ, set):
+        return {val}
+    if isinstance(typ, tuple):
+        return val,
+    if isinstance(typ, np.ndarray):
+        return np.array(val)
+    else:
+        raise NotImplementedError
+
+
 # in print statements from threads add flush=True
 class ThreadWithReturn(Thread):
     """Thread that writes return valus to dictionary, stops time it takes for
@@ -21,7 +38,7 @@ class ThreadWithReturn(Thread):
     """
 
     def __init__(self, func, arg_queue, results_dict, request_durations, abort,
-                 timestamp_queue, unpack=False):
+                 timestamp_queue, unpack=False, report_success=False):
         super(ThreadWithReturn, self).__init__()
         self.func = func
         self.arg_queue = arg_queue
@@ -30,6 +47,7 @@ class ThreadWithReturn(Thread):
         self.abort = abort
         self.timestamp_queue = timestamp_queue
         self.unpack = unpack
+        self.report_success = report_success
         self.daemon = True
         self.start()
 
@@ -52,7 +70,8 @@ class ThreadWithReturn(Thread):
                     response = self.func(arg)
                 stop = timer()
                 key = 'data'
-                print('processing', arg, 'done', flush=True)
+                if self.report_success:
+                    print('processing', arg, 'done', flush=True)
             except EmptyResponse:
                 response = 'EmptyResponse'
                 stop = timer()
@@ -107,7 +126,8 @@ class RateLimitedRequestsThreadPool:
 
     def __init__(self, func, func_args, log_file=None, Nrequests=10 ** 4,
                  period=100, use_bulk_requests=True, max_batch_size=50,
-                 max_workers=None, verbose=False, unpack=False):
+                 max_workers=None, verbose=False, unpack=False,
+                 report_success=False):
         """
         Args:
             func: request function
@@ -138,6 +158,7 @@ class RateLimitedRequestsThreadPool:
 
         self.verbose = verbose
         self.unpack = unpack
+        self.report_success = report_success
         self._request_timestamps = deque()
 
         self.start_queuing()
@@ -220,7 +241,8 @@ class RateLimitedRequestsThreadPool:
                                  request_durations=self.request_durations,
                                  abort=abort,
                                  timestamp_queue=self._request_timestamps,
-                                 unpack=self.unpack)
+                                 unpack=self.unpack,
+                                 report_success=self.report_success)
             )
 
     def check_all_done(self):
@@ -260,20 +282,28 @@ class RateLimitedRequestsThreadPool:
             for values in self.results['data'].values():
                 data_dict.update(values)
             self.results['data'] = data_dict
+        if self.batched_requests:
+            self.results['data'] = self._flatten_batch_responses(
+                self.results['data'])
 
-        self.results['errors'] = self._flatten_batch_responses(
-            self.results['errors'])
-        req_time_stamp = dict()
-        for item in self._request_timestamps:
-            req_time_stamp.update(self._flatten_batch_responses(item))
-        self._request_timestamps = req_time_stamp
+            self.results['errors'] = self._flatten_batch_responses(
+                self.results['errors'])
+            req_time_stamp = dict()
+            for item in self._request_timestamps:
+                req_time_stamp.update(self._flatten_batch_responses(item))
+            self._request_timestamps = req_time_stamp
 
     def _flatten_batch_responses(self, dict_in):
         """creates single dict entries for items in a batch request"""
         dict_out = dict()
         for arg, value in dict_in.items():
             if arg in self.batched_requests:
-                dict_out.update({single_arg: value for single_arg in arg})
+                if isinstance(value, Iterable) and not isinstance(value, (str, dict)):
+                    dict_out.update(
+                        {single_arg: conv_type(single_val, value) for
+                         single_arg, single_val in zip(arg, value)})
+                else:
+                    dict_out.update({single_arg: value for single_arg in arg})
             else:
                 dict_out.update({arg: value})
         return dict_out

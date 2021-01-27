@@ -78,18 +78,17 @@ class Meshes(BrainMapsRequest):
                                         store edge length in weight attribute
         """
         skel_graph = nx.Graph()
-        nedges = int(len(skel_json['skeleton']['indices']) / 2)
-        edges = np.array(skel_json['skeleton']['indices']).reshape(nedges, 2)
-        skel_graph.add_edges_from(edges)
-
+        # add nodes and node positions as attributes
         nnodes = int(len(skel_json['skeleton']['vertices']) / 3)
         node_coord = np.array(skel_json['skeleton']['vertices']).reshape(nnodes,
                                                                          3)
+        node_list = [(i, {'pos': coord}) for i, coord in enumerate(node_coord)]
+        skel_graph.add_nodes_from(node_list)
 
-        # add position as node attribute
-        for i in range(nnodes):
-            skel_graph.nodes[i]['pos'] = list(node_coord[i].astype(int))
-
+        # add edges
+        nedges = int(len(skel_json['skeleton']['indices']) / 2)
+        edges = np.array(skel_json['skeleton']['indices']).reshape(nedges, 2)
+        skel_graph.add_edges_from(edges)
         # add edge length in nm as edge attribute
         for u, v in skel_graph.edges:
             skel_graph[u][v]['weight'] = np.linalg.norm([
