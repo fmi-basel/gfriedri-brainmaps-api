@@ -209,7 +209,7 @@ class Meshes(BrainMapsRequest):
                 'The API response is empty. Check input variables')
         return bytearray(resp.content)
 
-    def download_mesh(self, segment_id, change_stack_id=None):
+    def download_mesh(self, segment_id, change_stack_id=None, mesh_name=None):
         """Returns the mesh for segment sv_id
 
         Meshes of one segment are usually split into several fragments. To
@@ -234,7 +234,8 @@ class Meshes(BrainMapsRequest):
                                     coordinates
             indices (np.array) : indices of the mesh
         """
-        mesh_name = self._get_mesh_name()[0]
+        if mesh_name is None:
+            mesh_name = self._get_mesh_name()[0]
         supervoxel_ids, fragments = self._get_fragment_list(segment_id,
                                                             mesh_name,
                                                             change_stack_id)
