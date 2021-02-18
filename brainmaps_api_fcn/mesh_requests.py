@@ -56,13 +56,16 @@ class Meshes(BrainMapsRequest):
                           bytestream[:float_size * no_idx * 3]))
         del bytestream[:float_size * no_idx * 3]
 
-        # convert to array and reshape
-        vertices = np.array(vertices).reshape(max(1, no_vert),
-                                              3).astype(int)
-        indices = np.array(indices).reshape(max(1, no_idx),
-                                            3).astype(int)
+        if no_idx>0:
+            # convert to array and reshape
+            vertices = np.array(vertices).reshape(max(1, no_vert),
+                                                  3).astype(int)
+            indices = np.array(indices).reshape(max(1, no_idx),
+                                                3).astype(int)
 
-        return bytestream, indices, vertices
+            return bytestream, indices, vertices
+        else:
+            return bytestream,None,None
 
     @staticmethod
     def _graph_from_skel_json(skel_json):
@@ -249,8 +252,9 @@ class Meshes(BrainMapsRequest):
             bytestream = self._get_mesh_fragment(mesh_name, batches)
             for j in range(n_fragments):
                 bytestream, ind, vert = self._mesh_from_stream(bytestream)
-                indices = np.append(indices, ind + vertices.shape[0], axis=0)
-                vertices = np.append(vertices, vert, axis=0)
+                if ind is not None:
+                    indices = np.append(indices, ind + vertices.shape[0], axis=0)
+                    vertices = np.append(vertices, vert, axis=0)
             if not supervoxel_ids:
                 data_to_query = False
 
