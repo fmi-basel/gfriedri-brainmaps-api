@@ -92,9 +92,9 @@ class Meshes(BrainMapsRequest):
         # add edge length in nm as edge attribute
         for u, v in skel_graph.edges:
             skel_graph[u][v]['weight'] = np.linalg.norm([
-                    x1 - x2 for x1, x2 in zip(skel_graph.nodes[v]['pos'],
-                                              skel_graph.nodes[u]['pos'])
-                ])
+                x1 - x2 for x1, x2 in zip(skel_graph.nodes[v]['pos'],
+                                          skel_graph.nodes[u]['pos'])
+            ])
         return skel_graph
 
     def _get_mesh_name(self, mesh_type='TRIANGLES'):
@@ -228,6 +228,9 @@ class Meshes(BrainMapsRequest):
                                   given entire mesh of the
                                   agglomerated parent will be
                                   downloaded
+            mesh_name (str, optional): name specifying the mesh, default: first
+                                        in the list of available meshes for the
+                                        volume indicated
 
         Returns:
             vertices (np.array) : all vertices of the mesh in [x,y,z] voxel
