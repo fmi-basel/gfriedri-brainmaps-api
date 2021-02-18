@@ -11,6 +11,8 @@ def to_key(item):
     if isinstance(item, Hashable):
         return item
     elif isinstance(item, Iterable):
+        if isinstance(item, dict):
+            return (item,)
         return to_tuple(item)
     else:
         raise RuntimeError('This is a situation that should not occur. But '
