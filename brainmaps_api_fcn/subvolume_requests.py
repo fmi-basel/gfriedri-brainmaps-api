@@ -67,5 +67,9 @@ class SubvolumeRequest(BrainMapsRequest):
             data = snappy.decompress(resp.content)
         else:
             data = resp.content
-        array = np.frombuffer(data, dtype=volume_datatype).reshape(size)
+        # The returned data is in CZYX format, so a voxel in a single channel
+        # uint8 volume at location X=23, Y=1, Z=10 would be array[10, 1, 23].
+        # Rearrange to return xyz:
+        array = np.frombuffer(data, dtype=volume_datatype).reshape(size[::-1])
+        array = np.swapaxes(array, 0, 2).swapaxes(0, 1)
         return array
