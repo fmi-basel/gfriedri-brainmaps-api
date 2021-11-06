@@ -15,6 +15,7 @@ from baf_utils.utils import to_key
 
 TIMEOUT = 2
 
+
 # helper function to convert single entries of batch requests to same type as in
 # single requests
 def conv_type(val, typ):
@@ -298,7 +299,8 @@ class RateLimitedRequestsThreadPool:
         dict_out = dict()
         for arg, value in dict_in.items():
             if arg in self.batched_requests:
-                if isinstance(value, Iterable) and not isinstance(value, (str, dict)):
+                if isinstance(value, Iterable) and not isinstance(value,
+                                                                  (str, dict)):
                     dict_out.update(
                         {single_arg: conv_type(single_val, value) for
                          single_arg, single_val in zip(arg, value)})
@@ -318,6 +320,7 @@ def run_pool(func, func_args, max_repeat=5, **kwargs):
     if 'verbose' in kwargs.keys():
         verbose = kwargs['verbose']
 
+    return_values = {'errors':dict(), 'data':dict()}
     while max_repeat > 0 and len(func_args) > 0:
         with RateLimitedRequestsThreadPool(func=func, func_args=func_args,
                                            **kwargs) as obj:
