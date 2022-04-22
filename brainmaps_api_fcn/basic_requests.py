@@ -44,9 +44,9 @@ class AuthenticatedCall:
 
     def get_request(self, url, query_param=''):
         """Get request function"""
-        if self._scoped_credentials.expired:
-            self.update_token()
         for i in range(self.max_repeat):
+            if self._scoped_credentials.expired:
+                self.update_token()
             resp = requests.get(url, params=query_param, headers=self._headers)
             if resp.ok:
                 break
@@ -58,13 +58,11 @@ class AuthenticatedCall:
 
     def post_request(self, url, req_body):
         """Post request function"""
-        if self._scoped_credentials.expired:
-            self.update_token()
         for i in range(self.max_repeat):
-            resp = requests.post(
-                url,
-                data=json.dumps(req_body).encode('utf-8'),
-                headers=self._headers)
+            if self._scoped_credentials.expired:
+                self.update_token()
+            resp = requests.post(url, data=json.dumps(req_body).encode('utf-8'),
+                                 headers=self._headers)
             if resp.ok:
                 break
         if not resp.ok:
