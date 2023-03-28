@@ -236,3 +236,24 @@ class BrainMapsRequest:
         else:
             print('volume_id and change_stack_id have to be specified')
             return
+
+    def create_chg_stack(self, change_stack_id, volume_id=None):
+        """creates a change stack under a given volume
+
+        Args:
+            change_stack_id (str): identifier of the changestack
+            volume_id (str, optional) : volume_id specified in form of
+                                        "projectId:datasetId:volumeId",
+                                        default =self.volume_id
+        Returns:
+            dict : dict with the response of post request
+        """
+        if not volume_id:
+            volume_id = self.volume_id
+        url = self.base_url + '/changes/{}/{}:create'.format(
+            volume_id, change_stack_id)
+        body = {}
+        print('creating change stack {} for volume {}'.format(change_stack_id,
+                                                              volume_id))
+        resp = self.post_request(url, body)
+        return resp.json()
