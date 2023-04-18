@@ -71,7 +71,7 @@ class EquivalenceRequests(BrainMapsRequest):
         """sets an equivalence between two unagglomerated supervoxels
 
         Args:
-            edge (list) : list with segment id pair or list with pair of
+            edge (list) : list with segment id pair or list with pairs of
                         [x,y,z] location
 
         Returns:
