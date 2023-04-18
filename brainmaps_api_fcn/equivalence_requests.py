@@ -78,6 +78,7 @@ class EquivalenceRequests(BrainMapsRequest):
             int : the (novel) common group_id after merging segments
         """
         if len(edge) != 2:
+            print('wrong edge', edge, flush=True)
             raise ValueError('edge argument has to contain either two segment '
                              'ids or two xyz coordinates which are supposed to '
                              'be linked')
@@ -182,8 +183,12 @@ class EquivalenceRequests(BrainMapsRequest):
             sv_id (int or list) : supervoxel ids
 
         Returns:
-              list : members of the agglomerated segments for the
-              supervoxels in sv_id
+              dict : maps each entry in sv_id onto a list of members of the
+                     agglomerated object
+                     {sv1: [sv1, sv2, sv3,...],
+                     sv11: [sv11,sv12,sv13,...],
+                     ...
+                     }
         """
         body = {"segmentId": [str(x) for x in int_to_list(sv_id)]}
         url = self.equ_base_url + 'getgroups'

@@ -1,7 +1,8 @@
 import numpy as np
 import pickle
 
-from collections import deque, Iterable
+from collections import deque
+from collections.abc import Iterable
 from datetime import datetime
 from multiprocessing import cpu_count
 from queue import Queue, Empty
@@ -110,7 +111,7 @@ class RateLimitedRequestsThreadPool:
         request_durations (collections.deque): duration of the last min_requests
                                             requests finished
 
-        batch_size (int): size of therequest arguments
+        batch_size (int): size of the request arguments
         _queuing_event (threading.Event): event to continue entry of data into
                                           the data queue. When no more data is
                                           available it is set.
