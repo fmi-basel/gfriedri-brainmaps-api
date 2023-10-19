@@ -1,5 +1,8 @@
-from brainmaps_api_fcn.basic_requests import BrainMapsRequest, EmptyResponse
+import numpy as np
+
 from collections.abc import Iterable
+
+from brainmaps_api_fcn.basic_requests import BrainMapsRequest, EmptyResponse
 
 
 def int_to_list(sv_id):
@@ -12,10 +15,12 @@ def int_to_list(sv_id):
     Returns:
         list: list of segment ids
     """
-    if not isinstance(sv_id, list):
+    if isinstance(sv_id, (int, np.int_, np.int64)):
         return [sv_id]
-    else:
+    elif isinstance(sv_id, list):
         return sv_id
+    else:
+        raise ValueError("input needs to be integer or list, not", type(sv_id))
 
 
 def check_convertible_to_int(item):
