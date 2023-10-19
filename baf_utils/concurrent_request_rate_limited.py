@@ -2,7 +2,6 @@ import numpy as np
 import pickle
 
 from collections import deque
-from collections.abc import Iterable
 from datetime import datetime
 from multiprocessing import cpu_count
 from queue import Queue, Empty
@@ -10,6 +9,7 @@ from requests.exceptions import HTTPError
 from statistics import median
 from threading import Thread, Event
 from timeit import default_timer as timer
+from typing import Iterable
 
 from brainmaps_api_fcn.basic_requests import EmptyResponse
 from baf_utils.utils import to_key
