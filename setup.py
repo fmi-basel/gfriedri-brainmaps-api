@@ -8,7 +8,7 @@ description = 'python functions for interacting with the Google Brainmaps API'
 
 setuptools.setup(
     name='brainmaps_api_fcn',
-    version='0.0.1',
+    version='0.0.2',
     author=authors,
     packages=setuptools.find_packages(),
     description=description,
