@@ -1,10 +1,10 @@
 import numpy as np
-try:
-    import snappy
-    snappy_ = True
-except ImportError:
-    snappy_ = False
-
+# try:
+#     import snappy
+#     snappy_ = True
+# except ImportError:
+#     snappy_ = False
+snappy_ = False
 
 from brainmaps_api_fcn.basic_requests import BrainMapsRequest
 
@@ -34,7 +34,8 @@ class SubvolumeRequest(BrainMapsRequest):
                                                service_account_secrets=service_account_secrets,
                                                **kwargs)
 
-    def get_subvolume(self, corner, size, volume_datatype=np.uint64, change_stack_id=None):
+    def get_subvolume(self, corner, size, volume_datatype=np.uint64,
+                      change_stack_id=None, return_xyz=True):
         """Downloads subvolume of image data
 
         Args:
@@ -67,9 +68,18 @@ class SubvolumeRequest(BrainMapsRequest):
             data = snappy.decompress(resp.content)
         else:
             data = resp.content
+
+        array = np.frombuffer(data, dtype=volume_datatype).reshape(size[::-1])
         # The returned data is in CZYX format, so a voxel in a single channel
         # uint8 volume at location X=23, Y=1, Z=10 would be array[10, 1, 23].
-        # Rearrange to return xyz:
-        array = np.frombuffer(data, dtype=volume_datatype).reshape(size[::-1])
-        array = np.swapaxes(array, 0, 2).swapaxes(0, 1)
+        if return_xyz:
+            if array.ndim == 4:
+                array = np.transpose(array, (0, 2, 3, 1))
+            elif array.ndim == 3:
+                array = np.transpose(array, (2,1,0))
+            else:
+                raise ValueError(
+                    "Unsupported number of dimensions for array: {}".format(
+                        array.ndim))
+
         return array
