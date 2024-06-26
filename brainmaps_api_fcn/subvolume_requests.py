@@ -1,4 +1,5 @@
 import numpy as np
+
 # try:
 #     import snappy
 #     snappy_ = True
@@ -35,7 +36,7 @@ class SubvolumeRequest(BrainMapsRequest):
                                                **kwargs)
 
     def get_subvolume(self, corner, size, volume_datatype=np.uint64,
-                      change_stack_id=None, return_xyz=True):
+                      change_stack_id=None, return_xyz=True, scale=0):
         """Downloads subvolume of image data
 
         Args:
@@ -55,7 +56,7 @@ class SubvolumeRequest(BrainMapsRequest):
             sv_format = 'RAW_SNAPPY'
         body = {
             'geometry': {
-                'scale': 0,
+                'scale': scale,
                 'corner': ','.join(str(x) for x in corner),
                 'size': ','.join(str(x) for x in size),
             },
@@ -76,7 +77,7 @@ class SubvolumeRequest(BrainMapsRequest):
             if array.ndim == 4:
                 array = np.transpose(array, (0, 2, 3, 1))
             elif array.ndim == 3:
-                array = np.transpose(array, (2,1,0))
+                array = np.transpose(array, (2, 1, 0))
             else:
                 raise ValueError(
                     "Unsupported number of dimensions for array: {}".format(
