@@ -119,7 +119,6 @@ class BrainMapsRequest:
         Returns:
             self._projects (list) : list of available volumes"""
         if not self._projects:
-            print('retrieving project list ...')
             url = self.base_url + '/projects'
             resp = self.get_request(url)
             self._projects = resp.json()['project']
@@ -132,7 +131,6 @@ class BrainMapsRequest:
         Returns:
             self._volumes (list) : list of available volumes"""
         if not self._volumes:
-            print('retrieving volume list ...')
             url = self.base_url + '/volumes'
             resp = self.get_request(url)
             self._volumes = resp.json()['volumeId']
@@ -151,7 +149,6 @@ class BrainMapsRequest:
         if project_id:
             query_param = {'projectId': project_id}
             url = self.base_url + '/datasets'
-            print('retrieving dataset list ...')
             resp = self.get_request(url, query_param=query_param)
             return resp.json()['datasetIds']
         else:
@@ -180,7 +177,6 @@ class BrainMapsRequest:
             volume_id = self.volume_id
         if volume_id:
             url = self.base_url + '/volumes/{}'.format(volume_id)
-            print('retrieving volume info ...')
             resp = self.get_request(url)
             if not resp.json():
                 raise EmptyResponse('The API response is empty')
@@ -203,7 +199,6 @@ class BrainMapsRequest:
             volume_id = self.volume_id
         if volume_id:
             url = self.base_url + '/changes/{}/change_stacks'.format(volume_id)
-            print('retrieving change stack list ...')
             resp = self.get_request(url)
             return resp.json()['changeStackId']
         else:
@@ -230,7 +225,6 @@ class BrainMapsRequest:
         if volume_id and change_stack_id:
             url = self.base_url + '/changes/{}/{}:stack_metadata'.format(
                 volume_id, change_stack_id)
-            print('retrieving change stack metadata ...')
             resp = self.get_request(url)
             return resp.json()['metadata']
         else:
@@ -253,7 +247,5 @@ class BrainMapsRequest:
         url = self.base_url + '/changes/{}/{}:create'.format(
             volume_id, change_stack_id)
         body = {}
-        print('creating change stack {} for volume {}'.format(change_stack_id,
-                                                              volume_id))
         resp = self.post_request(url, body)
         return resp.json()
